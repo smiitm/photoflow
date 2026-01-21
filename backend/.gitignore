@@ -1,9 +1,36 @@
 # Byte-compiled / cache
 __pycache__/
+*.py[cod]
+*$py.class
 
 # Virtual environment
 venv/
+.venv/
+env/
+ENV/
 
 # Environment variables / secrets
 .env
+.env.*
+!.env.example
+!.env.sample
+
+# Testing / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# OS / editor files
+.DS_Store
+Thumbs.db
 
