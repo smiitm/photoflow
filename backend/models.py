@@ -13,23 +13,23 @@ class Project(Base):
     name = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    images = relationship("Image", back_populates="project")
+    images = relationship("Image", back_populates="project", cascade="all, delete-orphan", passive_deletes=True)
 
 class Image(Base):
     __tablename__ = "images"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"))
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"))
     s3_key = Column(String, nullable=False)
     
     project = relationship("Project", back_populates="images")
-    faces = relationship("Face", back_populates="image")
+    faces = relationship("Face", back_populates="image", cascade="all, delete-orphan", passive_deletes=True)
 
 class Face(Base):
     __tablename__ = "faces"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id"))
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"))
     embedding = Column(Vector(128))  # The 128-d AI face array
     bounding_box = Column(JSON)
     
