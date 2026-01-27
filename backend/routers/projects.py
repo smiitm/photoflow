@@ -21,13 +21,15 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from deps import get_db
 from models import Project, Image
-from schemas import ProjectCreate, ProjectUpdate, ProjectResponse
+from schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ImageResponse
+from celery_app import celery_app
+from s3_utils import upload_image
 
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -160,3 +162,41 @@ def delete_project(
     db.delete(project)
     db.commit()
     return None
+
+
+@router.post(
+    "/{project_id}/upload",
+    response_model=ImageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload an image to a project",
+)
+def upload_project_image(
+    project_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(get_current_user),  # future auth
+):
+    """Upload a file to S3, create an Image record, and enqueue an AI processing task."""
+    project = _get_project_or_404(project_id, db)
+    # _check_ownership(project, current_user)  # future auth
+
+    file_bytes = file.file.read()
+    
+    s3_key = upload_image(
+        source=file_bytes,
+        project_id=str(project.id),
+        content_type=file.content_type or "image/jpeg"
+    )
+    
+    image = Image(project_id=project.id, s3_key=s3_key)
+    db.add(image)
+    db.commit()
+    db.refresh(image)
+    
+    # Enqueue Celery task
+    celery_app.send_task(
+        "worker.process_image",
+        kwargs={"image_id": str(image.id), "s3_key": s3_key}
+    )
+    
+    return image

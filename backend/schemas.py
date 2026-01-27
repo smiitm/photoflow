@@ -31,3 +31,14 @@ class ProjectResponse(BaseModel):
     name: str
     created_at: datetime
     image_count: int = 0
+
+
+# Image --------------------------------------------------
+
+class ImageResponse(BaseModel):
+    """Returned by the image upload endpoint."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    s3_key: str
