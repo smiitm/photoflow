@@ -42,3 +42,11 @@ class ImageResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     s3_key: str
+
+# Search --------------------------------------------------
+
+class SearchMatch(BaseModel):
+    """Returned by the search endpoint."""
+    s3_key: str
+    url: str
+    distance: float

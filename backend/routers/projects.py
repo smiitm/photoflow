@@ -27,9 +27,12 @@ from sqlalchemy.orm import Session
 
 from deps import get_db
 from models import Project, Image
-from schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ImageResponse
+from schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ImageResponse, SearchMatch
 from celery_app import celery_app
-from s3_utils import upload_image
+from s3_utils import generate_presigned_url, upload_image
+from ai_utils import extract_faces
+import tempfile
+import os
 
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -200,3 +203,69 @@ def upload_project_image(
     )
     
     return image
+
+
+@router.post(
+    "/{project_id}/search",
+    response_model=list[SearchMatch],
+    summary="Search for matching faces",
+)
+def search_project_faces(
+    project_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(get_current_user),  # future auth
+):
+    """Accept a selfie, extract vector, execute similarity search, and return presigned URLs."""
+    project = _get_project_or_404(project_id, db)
+    
+    file_bytes = file.file.read()
+    
+    # Save selfie to a temporary file
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp_path = tmp.name
+        tmp.write(file_bytes)
+        tmp.flush()
+        
+    try:
+        # Extract face from selfie
+        result = extract_faces(tmp_path)
+        faces = result.get("faces", [])
+        
+        if not faces:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No faces detected in the uploaded selfie."
+            )
+            
+        # Use the first face found
+        selfie_vector = faces[0]["embedding"]
+        
+        # Perform similarity search using pgvector l2_distance (<->)
+        from models import Face
+        distance_expr = Face.embedding.l2_distance(selfie_vector)
+        
+        results = (
+            db.query(Image.s3_key, distance_expr.label("distance"))
+            .join(Face, Face.image_id == Image.id)
+            .filter(Image.project_id == project.id)
+            .filter(distance_expr < 0.6)  # Threshold for face recognition matches
+            .order_by(distance_expr)
+            .limit(20)
+            .all()
+        )
+        
+        matches = []
+        seen_keys = set()
+        
+        for s3_key, dist in results:
+            if s3_key not in seen_keys:
+                seen_keys.add(s3_key)
+                url = generate_presigned_url(s3_key)
+                matches.append(SearchMatch(s3_key=s3_key, url=url, distance=dist))
+                
+        return matches
+        
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
