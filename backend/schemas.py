@@ -50,3 +50,9 @@ class SearchMatch(BaseModel):
     s3_key: str
     url: str
     distance: float
+
+# Download --------------------------------------------------
+
+class DownloadZipRequest(BaseModel):
+    """Body for POST /{project_id}/download-zip."""
+    s3_keys: list[str]

@@ -27,12 +27,15 @@ from sqlalchemy.orm import Session
 
 from deps import get_db
 from models import Project, Image
-from schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ImageResponse, SearchMatch
+from schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ImageResponse, SearchMatch, DownloadZipRequest
 from celery_app import celery_app
-from s3_utils import generate_presigned_url, upload_image
+from s3_utils import generate_presigned_url, upload_image, _s3_client, S3_BUCKET_NAME
 from ai_utils import extract_faces
 import tempfile
 import os
+import io
+import zipfile
+from fastapi.responses import StreamingResponse
 
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -269,3 +272,50 @@ def search_project_faces(
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+
+
+@router.post(
+    "/{project_id}/download-zip",
+    summary="Download multiple photos as a ZIP file",
+)
+def download_zip(
+    project_id: uuid.UUID,
+    body: DownloadZipRequest,
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(get_current_user),  # future auth
+):
+    """Download the specified S3 keys and stream them as a ZIP archive."""
+    project = _get_project_or_404(project_id, db)
+    
+    if not body.s3_keys:
+        raise HTTPException(status_code=400, detail="No keys provided")
+
+    # We will build the ZIP in memory
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+        for s3_key in body.s3_keys:
+            # We must ensure the key belongs to the project for security
+            if not s3_key.startswith(str(project.id) + "/"):
+                continue
+                
+            try:
+                # Fetch from S3
+                response = _s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+                file_bytes = response["Body"].read()
+                
+                # Use just the filename for the zip entry
+                filename = os.path.basename(s3_key)
+                zip_file.writestr(filename, file_bytes)
+            except Exception as e:
+                # Log or ignore missing files
+                print(f"Failed to fetch {s3_key}: {e}")
+                
+    # Seek to beginning
+    zip_buffer.seek(0)
+    
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=photoflow-{project.id}.zip"}
+    )
