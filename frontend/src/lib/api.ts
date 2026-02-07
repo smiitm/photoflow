@@ -52,3 +52,28 @@ export async function uploadImage(projectId: string, file: File): Promise<ImageR
   if (!res.ok) throw new Error("Failed to upload image");
   return res.json();
 }
+
+export async function searchFaces(projectId: string, file: File): Promise<SearchMatch[]> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/search`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to search faces");
+  }
+  return res.json();
+}
+
+export async function downloadZip(projectId: string, s3Keys: string[]): Promise<Blob> {
+  const res = await fetch(`${API_BASE_URL}/projects/${projectId}/download-zip`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ s3_keys: s3Keys }),
+  });
+  if (!res.ok) throw new Error("Failed to download zip");
+  return res.blob();
+}
