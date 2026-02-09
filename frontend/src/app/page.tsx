@@ -3,7 +3,7 @@ import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { ProjectCard } from "@/components/project-card";
 
 export default async function Home() {
-  let projects = [];
+  let projects: any[] = [];
   try {
     projects = await getProjects();
   } catch (error) {
