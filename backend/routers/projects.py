@@ -26,7 +26,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from deps import get_db
-from models import Project, Image
+from models import Project, Image, Face
 from schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ImageResponse, SearchMatch, DownloadZipRequest
 from celery_app import celery_app
 from s3_utils import generate_presigned_url, upload_image, _s3_client, S3_BUCKET_NAME
@@ -36,6 +36,16 @@ import os
 import io
 import zipfile
 from fastapi.responses import StreamingResponse
+
+ALLOWED_CONTENT_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+    "image/heif",
+}
+MAX_ZIP_KEYS = 200  # Prevent accidentally streaming gigabytes into RAM
 
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -186,12 +196,19 @@ def upload_project_image(
     project = _get_project_or_404(project_id, db)
     # _check_ownership(project, current_user)  # future auth
 
+    content_type = file.content_type or "image/jpeg"
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file type '{content_type}'. Allowed: JPEG, PNG, WEBP, GIF, HEIC.",
+        )
+
     file_bytes = file.file.read()
     
     s3_key = upload_image(
         source=file_bytes,
         project_id=str(project.id),
-        content_type=file.content_type or "image/jpeg"
+        content_type=content_type,
     )
     
     image = Image(project_id=project.id, s3_key=s3_key)
@@ -205,7 +222,7 @@ def upload_project_image(
         kwargs={"image_id": str(image.id), "s3_key": s3_key}
     )
     
-    return image
+    return ImageResponse(id=image.id, project_id=image.project_id, s3_key=image.s3_key)
 
 
 @router.post(
@@ -245,7 +262,6 @@ def search_project_faces(
         selfie_vector = faces[0]["embedding"]
         
         # Perform similarity search using pgvector l2_distance (<->)
-        from models import Face
         distance_expr = Face.embedding.l2_distance(selfie_vector)
         
         results = (
@@ -289,6 +305,12 @@ def download_zip(
     
     if not body.s3_keys:
         raise HTTPException(status_code=400, detail="No keys provided")
+
+    if len(body.s3_keys) > MAX_ZIP_KEYS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many keys requested. Maximum is {MAX_ZIP_KEYS}.",
+        )
 
     # We will build the ZIP in memory
     zip_buffer = io.BytesIO()
