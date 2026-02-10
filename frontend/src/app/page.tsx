@@ -1,9 +1,9 @@
-import { getProjects } from "@/lib/api";
+import { getProjects, Project } from "@/lib/api";
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { ProjectCard } from "@/components/project-card";
 
 export default async function Home() {
-  let projects: any[] = [];
+  let projects: Project[] = [];
   try {
     projects = await getProjects();
   } catch (error) {
@@ -28,7 +28,7 @@ export default async function Home() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project: any) => (
+          {projects.map((project: Project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
         </div>

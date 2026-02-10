@@ -140,6 +140,11 @@ export function GuestPortal({ projectId }: { projectId: string }) {
       const results = await searchFaces(projectId, capturedFile);
       setMatches(results);
       setMode("results");
+      // Revoke the object URL now that we have results — no longer needed for display
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to search faces");
       setMode("preview");
@@ -196,7 +201,6 @@ export function GuestPortal({ projectId }: { projectId: string }) {
         ref={fileInputRef}
         className="hidden"
         accept="image/*"
-        capture="user"
         onChange={handleFileChange}
       />
     </div>
@@ -308,14 +312,6 @@ export function GuestPortal({ projectId }: { projectId: string }) {
           Upload a clear picture of your face.
         </p>
         <Button className="w-full sm:w-auto">Browse Files</Button>
-
-        <input
-          type="file"
-          ref={fileInputRef}
-          className="hidden"
-          accept="image/*"
-          onChange={handleFileChange}
-        />
       </Card>
       <div className="mt-4 flex justify-center">
         <Button variant="ghost" onClick={resetToMenu}>

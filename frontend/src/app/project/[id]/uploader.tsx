@@ -37,16 +37,16 @@ export function Uploader({ projectId }: { projectId: string }) {
     e.stopPropagation();
   };
 
-  const uploadFile = async (item: UploadItem) => {
+  const uploadFile = useCallback(async (item: UploadItem) => {
     setUploads(prev => prev.map(u => u.id === item.id ? { ...u, status: "uploading" } : u));
     try {
       await uploadImage(projectId, item.file);
       setUploads(prev => prev.map(u => u.id === item.id ? { ...u, status: "success" } : u));
-      router.refresh(); // Refresh to update image count in the header
+      router.refresh();
     } catch (err) {
       setUploads(prev => prev.map(u => u.id === item.id ? { ...u, status: "error" } : u));
     }
-  };
+  }, [projectId, router]);
 
   const processFiles = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -54,9 +54,9 @@ export function Uploader({ projectId }: { projectId: string }) {
     const newUploads: UploadItem[] = Array.from(files)
       .filter(f => f.type.startsWith('image/'))
       .map(file => ({
-        id: Math.random().toString(36).substring(7),
+        id: crypto.randomUUID(),
         file,
-        status: "pending",
+        status: "pending" as UploadStatus,
       }));
     
     setUploads(prev => [...newUploads, ...prev]);
@@ -64,7 +64,7 @@ export function Uploader({ projectId }: { projectId: string }) {
     newUploads.forEach(item => {
       uploadFile(item);
     });
-  }, [projectId]);
+  }, [uploadFile]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -103,7 +103,7 @@ export function Uploader({ projectId }: { projectId: string }) {
       {uploads.length > 0 && (
         <div className="space-y-4">
           <h4 className="font-medium text-lg">Uploads</h4>
-          <div className="grid gap-3 max-h-[400px] overflow-y-auto pr-2">
+          <div className="grid gap-3 max-h-100 overflow-y-auto pr-2">
             {uploads.map((upload) => (
               <Card key={upload.id} className="p-3 flex items-center gap-4">
                 <div className="p-2 bg-muted rounded-md">
