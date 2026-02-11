@@ -268,7 +268,7 @@ def search_project_faces(
             db.query(Image.s3_key, distance_expr.label("distance"))
             .join(Face, Face.image_id == Image.id)
             .filter(Image.project_id == project.id)
-            .filter(distance_expr < 0.6)  # Threshold for face recognition matches
+            .filter(distance_expr < 0.55)  # Threshold for face recognition matches
             .order_by(distance_expr)
             .limit(20)
             .all()

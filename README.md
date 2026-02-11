@@ -73,11 +73,10 @@ Browser (selfie)  →  Next.js  →  FastAPI  →  face_recognition
    FROM   faces
    JOIN   images ON faces.image_id = images.id
    WHERE  images.project_id = 'project-uuid'
-     AND  faces.embedding <-> '[selfie_vector]' < 0.6
+     AND  faces.embedding <-> '[selfie_vector]' < 0.55
    ORDER  BY distance
    LIMIT  20;
    ```
-   The threshold `0.6` in L2 space corresponds roughly to "same person" for 128-d dlib embeddings. Duplicate `s3_key` values (same image, multiple matching faces) are deduplicated in Python before returning.
 
 5. **Presigned URL Delivery.** For each matching `s3_key`, FastAPI calls `generate_presigned_url()` to produce a time-limited (1 hour) HTTPS URL that gives the browser temporary read access to the private S3 object. These are returned as JSON.
 
@@ -357,7 +356,7 @@ The frontend will be available at `http://localhost:3000`.
 ### Face Recognition Accuracy
 
 - `face_recognition` uses a 128-dimensional dlib embedding and is very fast on CPU.
-- The similarity threshold is currently `0.6` (L2 Euclidean distance). Lower = stricter matching; raise it if you're missing matches, lower it if you're getting false positives.
+- The similarity threshold is currently `0.8` (L2 Euclidean distance). Lower = stricter matching; raise it if you're missing matches, lower it if you're getting false positives.
 - For higher accuracy (at the cost of speed), switch to InsightFace's 512-d ArcFace model. The database schema supports this by changing the `VECTOR(128)` column to `VECTOR(512)` in a new migration.
 - Photos should be reasonably well-lit and front-facing for best results.
 

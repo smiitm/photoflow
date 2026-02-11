@@ -196,13 +196,6 @@ export function GuestPortal({ projectId }: { projectId: string }) {
         </p>
       </Card>
       
-      <input
-        type="file"
-        ref={fileInputRef}
-        className="hidden"
-        accept="image/*"
-        onChange={handleFileChange}
-      />
     </div>
   );
 
@@ -324,6 +317,15 @@ export function GuestPortal({ projectId }: { projectId: string }) {
 
   return (
     <div className="w-full">
+      {/* Hidden file input — always in the DOM so the ref survives mode changes */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleFileChange}
+      />
+
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes scan {
           0% { transform: translateY(-100%); }
